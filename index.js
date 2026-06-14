@@ -4,9 +4,7 @@ const { Server } = require('socket.io');
 
 const app = express();
 const server = http.createServer(app);
-const io = new Server(server, { 
-    cors: { origin: "*", methods: ["GET", "POST"] }
-});
+const io = new Server(server, { cors: { origin: "*", methods: ["GET", "POST"] } });
 
 const rooms = new Map();
 
@@ -16,29 +14,22 @@ io.on('connection', (socket) => {
         if (!rooms.has(roomId)) {
             rooms.set(roomId, { users: new Set(), state: 'paused', readyCount: 0, currentTime: 0 });
         }
-        
         socket.join(roomId);
         rooms.get(roomId).users.add(socket.id);
-        
-        // Logique de rôle : le premier utilisateur est le HOST
         const assignedRole = rooms.get(roomId).users.size === 1 ? 'host' : 'guest';
         socket.emit('roleAssigned', assignedRole);
     });
 
     socket.on('mediaAction', (data) => {
-        const { roomId, action, time } = data;
-        const room = rooms.get(roomId);
+        const room = rooms.get(data.roomId);
         if (!room) return;
-
-        if (action === 'REQUEST_PLAY') {
+        if (data.action === 'REQUEST_PLAY') {
             room.state = 'buffering';
             room.readyCount = 0;
-            room.currentTime = time || room.currentTime;
-            io.to(roomId).emit('syncAction', { action: 'PREPARE_PLAY' });
-        } else if (action === 'REQUEST_PAUSE') {
-            room.state = 'paused';
-            room.currentTime = time || room.currentTime;
-            io.to(roomId).emit('syncAction', { action: 'EXECUTE_PAUSE', time: room.currentTime });
+            room.currentTime = data.time || 0;
+            io.to(data.roomId).emit('syncAction', { action: 'PREPARE_PLAY' });
+        } else if (data.action === 'REQUEST_PAUSE') {
+            io.to(data.roomId).emit('syncAction', { action: 'EXECUTE_PAUSE', time: data.time });
         }
     });
 
@@ -46,11 +37,12 @@ io.on('connection', (socket) => {
         const room = rooms.get(roomId);
         if (room && room.state === 'buffering') {
             room.readyCount++;
+            // Lancement après 1 seconde pour laisser passer les pubs
             if (room.readyCount >= room.users.size) {
                 room.state = 'playing';
                 io.to(roomId).emit('syncAction', { 
                     action: 'EXECUTE_PLAY', 
-                    executeAt: Date.now() + 500, 
+                    executeAt: Date.now() + 1000, 
                     time: room.currentTime 
                 });
             }
