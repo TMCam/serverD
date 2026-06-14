@@ -12,7 +12,7 @@ io.on('connection', (socket) => {
     socket.on('joinRoom', (data) => {
         const roomId = data.roomId;
         if (!rooms.has(roomId)) {
-            rooms.set(roomId, { users: new Set(), state: 'paused', readyCount: 0, currentTime: 0 });
+            rooms.set(roomId, { users: new Set(), state: 'paused', readyCount: 0, currentTime: 0, timeout: null });
         }
         socket.join(roomId);
         rooms.get(roomId).users.add(socket.id);
@@ -28,6 +28,15 @@ io.on('connection', (socket) => {
             room.readyCount = 0;
             room.currentTime = data.time || 0;
             io.to(data.roomId).emit('syncAction', { action: 'PREPARE_PLAY' });
+
+            // TIMEOUT : Si après 5s tout n'est pas prêt, on envoie une erreur
+            if (room.timeout) clearTimeout(room.timeout);
+            room.timeout = setTimeout(() => {
+                if (room.state === 'buffering') {
+                    io.to(data.roomId).emit('syncAction', { action: 'SYNC_ERROR', message: "Oups, la synchronisation a échoué." });
+                    room.state = 'paused';
+                }
+            }, 5000);
         } else if (data.action === 'REQUEST_PAUSE') {
             io.to(data.roomId).emit('syncAction', { action: 'EXECUTE_PAUSE', time: data.time });
         }
@@ -37,12 +46,12 @@ io.on('connection', (socket) => {
         const room = rooms.get(roomId);
         if (room && room.state === 'buffering') {
             room.readyCount++;
-            // Lancement après 1 seconde pour laisser passer les pubs
             if (room.readyCount >= room.users.size) {
+                if (room.timeout) clearTimeout(room.timeout);
                 room.state = 'playing';
                 io.to(roomId).emit('syncAction', { 
                     action: 'EXECUTE_PLAY', 
-                    executeAt: Date.now() + 1000, 
+                    executeAt: Date.now() + 500, 
                     time: room.currentTime 
                 });
             }
