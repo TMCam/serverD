@@ -23,22 +23,22 @@ io.on('connection', (socket) => {
     socket.on('mediaAction', (data) => {
         const room = rooms.get(data.roomId);
         if (!room) return;
+        
         if (data.action === 'REQUEST_PLAY') {
             room.state = 'buffering';
             room.readyCount = 0;
-            room.currentTime = data.time || 0;
+            room.currentTime = data.time || 0; // Sauvegarde du temps
             io.to(data.roomId).emit('syncAction', { action: 'PREPARE_PLAY' });
 
-            // TIMEOUT : Si après 5s tout n'est pas prêt, on envoie une erreur
             if (room.timeout) clearTimeout(room.timeout);
             room.timeout = setTimeout(() => {
                 if (room.state === 'buffering') {
-                    io.to(data.roomId).emit('syncAction', { action: 'SYNC_ERROR', message: "Oups, la synchronisation a échoué." });
+                    io.to(data.roomId).emit('syncAction', { action: 'SYNC_ERROR', message: "Oups, timeout!" });
                     room.state = 'paused';
                 }
             }, 5000);
         } else if (data.action === 'REQUEST_PAUSE') {
-            io.to(data.roomId).emit('syncAction', { action: 'EXECUTE_PAUSE', time: data.time });
+            io.to(data.roomId).emit('syncAction', { action: 'EXECUTE_PAUSE', time: data.time || 0 });
         }
     });
 
@@ -49,6 +49,7 @@ io.on('connection', (socket) => {
             if (room.readyCount >= room.users.size) {
                 if (room.timeout) clearTimeout(room.timeout);
                 room.state = 'playing';
+                // On s'assure de renvoyer le currentTime sauvegardé
                 io.to(roomId).emit('syncAction', { 
                     action: 'EXECUTE_PLAY', 
                     executeAt: Date.now() + 500, 
