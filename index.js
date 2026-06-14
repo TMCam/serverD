@@ -31,8 +31,14 @@ io.on('connection', (socket) => {
             room.readyCount = 0;
             room.currentTime = data.time || 0;
             io.to(data.roomId).emit('syncAction', { action: 'PREPARE_PLAY' });
+
             if (room.timeout) clearTimeout(room.timeout);
-            room.timeout = setTimeout(() => { if (room.state === 'buffering') { io.to(data.roomId).emit('syncAction', { action: 'SYNC_ERROR', message: "Timeout!" }); room.state = 'paused'; } }, 5000);
+            room.timeout = setTimeout(() => {
+                if (room.state === 'buffering') {
+                    io.to(data.roomId).emit('syncAction', { action: 'SYNC_ERROR', message: "Timeout!" });
+                    room.state = 'paused';
+                }
+            }, 5000);
         } else if (data.action === 'REQUEST_PAUSE') {
             io.to(data.roomId).emit('syncAction', { action: 'EXECUTE_PAUSE', time: data.time || 0 });
         }
