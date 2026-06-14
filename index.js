@@ -24,10 +24,13 @@ io.on('connection', (socket) => {
         const room = rooms.get(data.roomId);
         if (!room) return;
         
-        if (data.action === 'REQUEST_PLAY') {
+        // Nouvelle gestion du changement de piste
+        if (data.action === 'REQUEST_CHANGE_TRACK') {
+            io.to(data.roomId).emit('syncAction', { action: 'EXECUTE_CHANGE_TRACK', trackId: data.trackId });
+        } else if (data.action === 'REQUEST_PLAY') {
             room.state = 'buffering';
             room.readyCount = 0;
-            room.currentTime = data.time || 0; // Sauvegarde du temps
+            room.currentTime = data.time || 0;
             io.to(data.roomId).emit('syncAction', { action: 'PREPARE_PLAY' });
 
             if (room.timeout) clearTimeout(room.timeout);
@@ -49,7 +52,6 @@ io.on('connection', (socket) => {
             if (room.readyCount >= room.users.size) {
                 if (room.timeout) clearTimeout(room.timeout);
                 room.state = 'playing';
-                // On s'assure de renvoyer le currentTime sauvegardé
                 io.to(roomId).emit('syncAction', { 
                     action: 'EXECUTE_PLAY', 
                     executeAt: Date.now() + 500, 
