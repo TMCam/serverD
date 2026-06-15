@@ -25,7 +25,7 @@ io.on('connection', (socket) => {
         if (!room) return;
 
         if (data.action === 'REQUEST_CHANGE_TRACK') {
-            io.to(data.roomId).emit('syncAction', { action: 'EXECUTE_CHANGE_TRACK', trackId: data.trackId });
+            socket.to(data.roomId).emit('syncAction', { action: 'EXECUTE_CHANGE_TRACK', trackId: data.trackId });
         } else if (data.action === 'REQUEST_PLAY') {
             room.state = 'buffering';
             room.readyCount = 0;
@@ -54,6 +54,15 @@ io.on('connection', (socket) => {
                 io.to(roomId).emit('syncAction', { action: 'EXECUTE_PLAY', time: room.currentTime });
             }
         }
+    });
+
+    socket.on('disconnect', () => {
+        rooms.forEach((room, roomId) => {
+            if (room.users.has(socket.id)) {
+                room.users.delete(socket.id);
+                if (room.users.size === 0) rooms.delete(roomId);
+            }
+        });
     });
 });
 
